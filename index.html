@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gerador de Keys (Web)</title>
+  <style>
+    :root{--bg:#0b0b0d;--panel:#121216;--accent:#2563eb;--muted:#9ca3af;--mono:ui-monospace,SFMono-Regular,monospace}
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:radial-gradient(circle at top,#2563eb22,transparent),var(--bg);
+      color:#f8fafc;
+      font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+      padding:20px;
+    }
+    .panel{
+      width:100%;
+      max-width:480px;
+      background:var(--panel);
+      padding:20px;
+      border-radius:14px;
+      box-shadow:0 8px 30px rgba(0,0,0,.5);
+    }
+    h1{margin:0 0 16px;color:#ef4444;font-size:20px}
+    label{display:block;margin:8px 0 4px;color:var(--muted);font-size:13px}
+    input[type="text"], input[type="number"], .btn{
+      width:100%;
+      padding:10px 12px;
+      border-radius:10px;
+      border:none;
+      font-size:15px;
+      margin-bottom:10px;
+    }
+    input{background:#1f1f25;color:#fff}
+    .btn{background:var(--accent);color:#fff;font-weight:700;cursor:pointer}
+    .keys-box{
+      margin-top:12px;
+      padding:12px;
+      background:#0f1115;border-radius:10px;
+      font-family:var(--mono);color:#0af1f;
+      max-height:200px;overflow:auto;white-space:pre-wrap;
+    }
+    .actions{display:flex;gap:8px;margin-top:10px}
+    .small{font-size:13px;color:var(--muted)}
+    .log{margin-top:10px;font-size:13px;color:#cbd5e1;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>Gerador de Keys</h1>
+
+    <label>Prefixo da key (ex:QUATI-MODS-)</label>
+    <input type="text" id="prefix" placeholder="Prefixo (ex:QUATI-MODS-)">
+
+    <label>Dia da key (ex: 10)</label>
+    <input type="text" id="dia" placeholder="Dia (ex: 10)">
+
+    <label>Quantidade de keys</label>
+    <input type="number" id="quantidade" value="5" min="1" max="500">
+
+    <label>Tamanho da key (sem prefixo)</label>
+    <input type="number" id="tamanho" value="12" min="4" max="64">
+
+    <div class="actions">
+      <button class="btn" id="btnGerar">Gerar Keys</button>
+      <button id="btnCopiar" class="btn" style="background:#111827">Copiar</button>
+      <button id="btnDownload" class="btn" style="background:#0b1220">Download</button>
+    </div>
+
+    <div class="keys-box" id="keysBox">As keys geradas aparecerão aqui...</div>
+
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+      <label style="margin:0"><input type="checkbox" id="sendMockapi" checked> Enviar para MockAPI</label>
+      <label style="margin:0"><input type="checkbox" id="sendWebhook"> Enviar para Webhook</label>
+    </div>
+
+    <label style="margin-top:8px">MockAPI URL</label>
+    <input type="text" id="mockapiUrl" value="https://68f27d4fb36f9750deecce00.mockapi.io/keys1">
+
+    <label>Webhook URL (Discord)</label>
+    <input type="text" id="webhookUrl" value="https://discord.com/api/webhooks/1430382531915546704/kQeAFzsJhWhTgUQ6uXXBEZa8XOA1rLbG9k4WKcgqjmTbI3XHNBuXs412Kxs8H-zCzkZ7">
+
+    <div class="log" id="log">Logs aparecerão aqui...</div>
+  </div>
+
+<script>
+(() => {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const btnGerar = document.getElementById("btnGerar");
+  const keysBox = document.getElementById("keysBox");
+  const logEl = document.getElementById("log");
+  const btnCopiar = document.getElementById("btnCopiar");
+  const btnDownload = document.getElementById("btnDownload");
+
+  function gerarKey(tamanho, prefixo, dia){
+    let key = "";
+    for(let i=0;i<tamanho;i++){
+      key += chars[Math.floor(Math.random()*chars.length)];
+    }
+    return `${prefixo}${dia}${key}`;
+  }
+
+  function log(msg){
+    console.log(msg);
+    logEl.textContent = (logEl.textContent ? logEl.textContent + "\n" : "") + msg;
+  }
+
+  async function enviarParaMockapi(url, keyObj){
+    try{
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(keyObj)
+      });
+      log(`MockAPI (${keyObj.key}): ${res.status}`);
+      return res;
+    }catch(e){
+      log(`Erro MockAPI (${keyObj.key}): ${e}`);
+      return null;
+    }
+  }
+
+  async function enviarWebhook(url, keys){
+    try{
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ content: `🔑 Novas keys geradas:\n${keys.join("\n")}` })
+      });
+      log(`Webhook: ${res.status}`);
+      return res;
+    }catch(e){
+      log(`Erro Webhook: ${e}`);
+      return null;
+    }
+  }
+
+  btnGerar.addEventListener("click", async () => {
+    logEl.textContent = ""; // limpa logs visíveis
+    const prefix = (document.getElementById("prefix").value || "").trim();
+    const dia = (document.getElementById("dia").value || "").trim();
+    const quantidade = parseInt(document.getElementById("quantidade").value) || 5;
+    const tamanho = parseInt(document.getElementById("tamanho").value) || 12;
+    const sendMock = document.getElementById("sendMockapi").checked;
+    const sendHook = document.getElementById("sendWebhook").checked;
+    const mockapiUrl = document.getElementById("mockapiUrl").value.trim();
+    const webhookUrl = document.getElementById("webhookUrl").value.trim();
+
+    if(!prefix || !dia){
+      alert("Preencha prefixo e dia!");
+      return;
+    }
+
+    const keys = [];
+    for(let i=0;i<quantidade;i++){
+      keys.push(gerarKey(tamanho, prefix, dia));
+    }
+
+    keysBox.textContent = keys.join("\n");
+    log(`🔹 Keys geradas: ${keys.length}`);
+
+    // enviar para MockAPI (se marcado)
+    if(sendMock && mockapiUrl){
+      log("Enviando para MockAPI...");
+      for(const k of keys){
+        const payload = {
+          key: k,
+          status: "active",
+          createdAt: new Date().toISOString(),
+          dia: dia
+        };
+        // não bloqueante: aguarda cada envio para evitar flood, mas você pode paralelizar se quiser
+        await enviarParaMockapi(mockapiUrl, payload);
+      }
+    }
+
+    // enviar para webhook (se marcado)
+    if(sendHook && webhookUrl){
+      log("Enviando para Webhook...");
+      await enviarWebhook(webhookUrl, keys);
+    }
+
+    // mostra alerta simples (in-page)
+    log("Operação finalizada.");
+  });
+
+  btnCopiar.addEventListener("click", async () => {
+    const text = keysBox.textContent;
+    if(!text || text.includes("As keys geradas")){
+      alert("Nada para copiar.");
+      return;
+    }
+    try{
+      await navigator.clipboard.writeText(text);
+      alert("Keys copiadas para a área de transferência!");
+    }catch(e){
+      // fallback
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+      alert("Copiado (fallback).");
+    }
+  });
+
+  btnDownload.addEventListener("click", () => {
+    const text = keysBox.textContent;
+    if(!text || text.includes("As keys geradas")){
+      alert("Nada para baixar.");
+      return;
+    }
+    const blob = new Blob([text], {type:"text/plain"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "keys.txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+})();
+</script>
+</body>
+</html>
